@@ -7,17 +7,43 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "yt-dlp>=2025.1.15",
     "faster-whisper>=1.2.0",
-    "torch",
-    "torchaudio",
     "sse-starlette>=2.1",
     "pydantic>=2.9",
 ]
+
+# Pick exactly one of these extras when you `uv sync`:
+#   uv sync --extra gpu   # NVIDIA GPU — installs the CUDA 12.1 torch wheel (~2.5 GB)
+#   uv sync --extra cpu   # CPU-only / macOS — installs the small CPU torch wheel
+# `make install` (from the project root) auto-detects and picks the right one.
+[project.optional-dependencies]
+gpu = ["torch>=2.5", "torchaudio>=2.5"]
+cpu = ["torch>=2.5", "torchaudio>=2.5"]
 
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# Per-extra source routing: the torch index used for resolution depends on
+# which extra was selected. macOS ARM doesn't get a special index here —
+# it uses the cpu wheels too, which works because `pytorch-cpu` ships
+# darwin-arm64 wheels.
 [tool.uv.sources]
-torch = { index = "pytorch-cu121" }
-torchaudio = { index = "pytorch-cu121" }
+torch = [
+    { index = "pytorch-cu121", extra = "gpu" },
+    { index = "pytorch-cpu",   extra = "cpu" },
+]
+torchaudio = [
+    { index = "pytorch-cu121", extra = "gpu" },
+    { index = "pytorch-cpu",   extra = "cpu" },
+]
+
+# These two extras are mutually exclusive (different torch indexes); never
+# select both at once.
+[tool.uv]
+conflicts = [[{ extra = "gpu" }, { extra = "cpu" }]]

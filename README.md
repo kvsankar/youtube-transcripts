@@ -10,11 +10,15 @@ Paste YouTube URLs into the web UI; the backend downloads each video, transcribe
 
 ## Prerequisites
 
-- `uv` (Python project manager).
-- `node` 20+ and `npm`.
-- `ffmpeg` on `PATH` (used by `yt-dlp` and `faster-whisper`).
-- An NVIDIA GPU with CUDA 12.1+ drivers (CPU works but is much slower).
-- The [`claude` CLI](https://docs.claude.com/en/docs/claude-code/overview) installed.
+`make doctor` will tell you which of these you're missing:
+
+| What | Why | Install |
+| ---- | --- | ------- |
+| `uv`     | Python project + script runner | <https://docs.astral.sh/uv/> |
+| `node` 20+, `npm` | frontend build/run                | <https://nodejs.org/> |
+| `ffmpeg` | yt-dlp + faster-whisper need it   | <https://ffmpeg.org/download.html> |
+| `claude` CLI | Sonnet/Opus calls               | <https://docs.claude.com/en/docs/claude-code/overview> |
+| NVIDIA GPU + drivers (optional) | fast Whisper transcription | (CPU fallback works automatically) |
 
 ## Authentication for Claude
 
@@ -27,24 +31,30 @@ The choice is made at backend startup by reading the env var; restart the backen
 
 ## Setup
 
+One command does everything — auto-detects GPU vs CPU, installs both Python and Node deps, and runs a final health check:
+
 ```bash
-cd backend && uv sync
-cd ../frontend && npm install
+make install              # or: uv run scripts/install.py
 ```
 
-> **CPU-only / non-NVIDIA machine?** The default `pyproject.toml` pins `torch` to the CUDA 12.1 wheel index (Linux & Windows only — these wheels still run fine on a CPU box, just bigger). On macOS or for a slimmer CPU-only install, remove the `[[tool.uv.index]]` and `[tool.uv.sources]` blocks from `backend/pyproject.toml` before running `uv sync`. The transcriber detects at runtime whether to use GPU or CPU and falls back automatically; CPU transcription works but is much slower.
+What it picks:
+
+| Environment                     | torch wheel chosen | venv size |
+| ------------------------------- | ------------------ | --------- |
+| `nvidia-smi` returns a GPU      | CUDA 12.1 wheels   | ~5 GB     |
+| no GPU detected (incl. macOS)   | CPU-only wheels    | ~1.2 GB   |
+
+Force a specific choice with `uv run scripts/install.py --gpu` or `--cpu`. The transcriber falls back to CPU at runtime if a GPU load fails, so a `--gpu` install is still safe on a borderline machine.
+
+To check prerequisites without installing: `make doctor` (or `uv run scripts/doctor.py`). It verifies `uv`, `node`/`npm`, `ffmpeg`, the `claude` CLI, GPU presence, and Anthropic auth.
 
 ## Run
 
-Two terminals:
-
 ```bash
-# Backend on http://localhost:8000
-cd backend && uv run uvicorn app.main:app --reload --port 8000
-
-# Frontend (Vite picks 5173 or next free port)
-cd frontend && npm run dev
+make dev                  # or: uv run scripts/dev.py
 ```
+
+That starts both the backend (`:8000`) and frontend (Vite, picks `5173` or next free port) in one terminal, with output prefixed `[backend ]` / `[frontend]`. Ctrl+C stops both cleanly. To run just one side: `make backend` or `make frontend`.
 
 Open the URL Vite prints. Paste one or more YouTube URLs (one per line), optionally add tags, click Submit. Progress streams live; click a row to view its outputs in the right panel. Drag the splitter to resize.
 
@@ -52,8 +62,14 @@ Open the URL Vite prints. Paste one or more YouTube URLs (one per line), optiona
 
 ```
 youtube-transcripts/
+├── Makefile                     # make install / dev / doctor / wipe / clean
+├── scripts/                     # standalone uv-run scripts
+│   ├── install.py               # GPU-aware installer
+│   ├── dev.py                   # runs both servers, prefixed output
+│   ├── doctor.py                # prerequisite checker
+│   └── _common.py
 ├── backend/                     # FastAPI service (uv-managed)
-│   ├── pyproject.toml, uv.lock
+│   ├── pyproject.toml, uv.lock  # cpu/gpu extras pick the torch wheel index
 │   └── app/
 │       ├── main.py              # routes + SSE + lifespan
 │       ├── pipeline.py          # async worker driving each job through stages
@@ -61,9 +77,10 @@ youtube-transcripts/
 │       ├── db.py                # connection + schema + migrations
 │       ├── paths.py             # data/, audio/, transcripts/ resolution
 │       ├── downloader.py        # yt-dlp wrapper (m4a-only, cached)
-│       ├── transcriber.py       # faster-whisper (medium, CUDA), cached
-│       ├── structurer.py        # Sonnet, chunked, no summarisation
-│       └── summarizer.py        # Opus, single call, structured digest
+│       ├── transcriber.py       # faster-whisper (medium), GPU-or-CPU
+│       ├── structurer.py        # Sonnet, chunked, retry+timeout
+│       ├── summarizer.py        # Opus, single call, retry+timeout
+│       └── retry.py             # tiny async retry helper
 └── frontend/                    # Vite + React + TypeScript
     └── src/
         ├── App.tsx              # main page: submit + jobs table + splitter
