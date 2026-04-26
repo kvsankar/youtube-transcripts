@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable
 
 from .paths import TRANSCRIPTS_DIR
+from .retry import with_retry
 
 
 # `--bare` makes the CLI use ANTHROPIC_API_KEY exclusively and skips the
@@ -62,6 +63,13 @@ CLAUDE_MODEL = "claude-sonnet-4-6"
 TARGET_CHUNK_WORDS = 5000
 MAX_CHUNK_WORDS = 7000
 
+# Per-attempt timeout. Generous enough to absorb subscription throttling
+# (we've measured chunks taking 4-7 min during heavy throttling) without
+# letting a truly hung subprocess block forever.
+PER_CALL_TIMEOUT_SECONDS = 600.0  # 10 min
+RETRY_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS: tuple[float, ...] = (30.0, 90.0)
+
 
 async def structure_transcript(
     raw_path: Path,
@@ -80,12 +88,28 @@ async def structure_transcript(
 
     structured_pieces: list[str] = []
     for idx, chunk in enumerate(chunks, start=1):
-        if on_progress:
-            on_progress(
-                (idx - 1) / len(chunks) * 100.0,
-                f"Structuring chunk {idx}/{len(chunks)}…",
-            )
-        piece = await _call_claude(chunk)
+        def report(suffix: str = "", i: int = idx) -> None:
+            if on_progress:
+                on_progress(
+                    (i - 1) / len(chunks) * 100.0,
+                    f"Structuring chunk {i}/{len(chunks)}{suffix}…",
+                )
+
+        report()
+
+        async def attempt(c: str = chunk) -> str:
+            return await _call_claude(c)
+
+        def on_retry(next_attempt: int, total: int) -> None:
+            report(f" (retry {next_attempt}/{total})")
+
+        piece = await with_retry(
+            f"structurer chunk {idx}/{len(chunks)}",
+            attempt,
+            attempts=RETRY_ATTEMPTS,
+            backoff_seconds=RETRY_BACKOFF_SECONDS,
+            on_retry=on_retry,
+        )
         structured_pieces.append(piece)
 
     structured = "\n\n".join(structured_pieces).strip()
@@ -114,7 +138,21 @@ async def _call_claude(text: str) -> str:
         stderr=asyncio.subprocess.PIPE,
     )
 
-    stdout_bytes, stderr_bytes = await proc.communicate(input=text.encode("utf-8"))
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(input=text.encode("utf-8")),
+            timeout=PER_CALL_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        # Drain so the OS pipe buffer doesn't block teardown
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            pass
+        raise RuntimeError(
+            f"claude CLI exceeded {PER_CALL_TIMEOUT_SECONDS:.0f}s timeout"
+        )
 
     if proc.returncode != 0:
         err = stderr_bytes.decode("utf-8", errors="replace").strip()

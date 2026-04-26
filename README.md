@@ -32,6 +32,8 @@ cd backend && uv sync
 cd ../frontend && npm install
 ```
 
+> **CPU-only / non-NVIDIA machine?** The default `pyproject.toml` pins `torch` to the CUDA 12.1 wheel index (Linux & Windows only — these wheels still run fine on a CPU box, just bigger). On macOS or for a slimmer CPU-only install, remove the `[[tool.uv.index]]` and `[tool.uv.sources]` blocks from `backend/pyproject.toml` before running `uv sync`. The transcriber detects at runtime whether to use GPU or CPU and falls back automatically; CPU transcription works but is much slower.
+
 ## Run
 
 Two terminals:

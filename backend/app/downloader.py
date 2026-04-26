@@ -68,7 +68,17 @@ def download_audio(
         # can consume. If the fallback to non-m4a triggers, faster-whisper /
         # ffmpeg can still read whatever container yt-dlp produced.
         "overwrites": False,
-        "continuedl": True,
+        "continuedl": True,  # resume partial downloads
+        # Resilience: retry network and extractor errors with internal backoff
+        "retries": 10,              # whole-download retries
+        "fragment_retries": 10,     # per-fragment for HLS/DASH
+        "extractor_retries": 5,     # YouTube extractor errors
+        "socket_timeout": 30,       # per-socket op
+        "retry_sleep_functions": {  # internal exponential backoff
+            "http": lambda n: min(2 ** n, 60),
+            "fragment": lambda n: min(2 ** n, 60),
+            "extractor": lambda n: min(2 ** n, 60),
+        },
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:

@@ -117,8 +117,17 @@ async def _run_one(job_id: str) -> None:
         stage_label="Asking Opus to summarize…",
     )
 
+    def sm_progress(pct: float, label: str) -> None:
+        loop.call_soon_threadsafe(
+            lambda p=pct, l=label: store.update(
+                job_id, progress=p, stage_label=l
+            )
+        )
+
     try:
-        summary_path = await summarizer.summarize_transcript(structured_path)
+        summary_path = await summarizer.summarize_transcript(
+            structured_path, on_progress=sm_progress
+        )
     except Exception as exc:
         log.exception("Summarization failed for %s", structured_path)
         store.update(job_id, status="failed", error=f"Summarization failed: {exc}")
