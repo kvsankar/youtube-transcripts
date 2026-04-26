@@ -65,7 +65,7 @@ def main() -> int:
         info("Forced via --cpu")
     elif has_nvidia_gpu():
         extra = "gpu"
-        ok("NVIDIA GPU detected -> installing CUDA 12.1 torch wheels (~5 GB venv)")
+        ok("NVIDIA GPU detected -> installing CUDA 12.1 torch wheels (~5.2 GB venv)")
     else:
         extra = "cpu"
         info("No NVIDIA GPU detected -> installing CPU torch wheels (~1.2 GB venv)")
