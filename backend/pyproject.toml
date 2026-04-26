@@ -1,0 +1,23 @@
+[project]
+name = "yt-transcripts-backend"
+version = "0.1.0"
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "yt-dlp>=2025.1.15",
+    "faster-whisper>=1.2.0",
+    "torch",
+    "torchaudio",
+    "sse-starlette>=2.1",
+    "pydantic>=2.9",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchaudio = { index = "pytorch-cu121" }
