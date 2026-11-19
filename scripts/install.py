@@ -97,7 +97,7 @@ def main() -> int:
     header("Next steps")
     info("Start both servers with: uv run scripts/dev.py")
     info("Or individually:")
-    info("  Backend  : (cd backend && uv run uvicorn app.main:app --reload --port 8000)")
+    info("  Backend  : (cd backend && uv run uvicorn app.main:app --reload --port 8765)")
     info("  Frontend : (cd frontend && npm run dev)")
     if extra == "gpu" and not has_nvidia_gpu():
         warn("You forced --gpu but nvidia-smi isn't available — runtime will fall back to CPU.")

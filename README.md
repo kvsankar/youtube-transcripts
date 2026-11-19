@@ -64,7 +64,7 @@ Cold install on a fresh Ubuntu VM (no uv cache, no node_modules) takes ~20 s for
 make dev                  # or: uv run scripts/dev.py
 ```
 
-That starts both the backend (`:8000`) and frontend (Vite, picks `5173` or next free port) in one terminal, with output prefixed `[backend ]` / `[frontend]`. Ctrl+C stops both cleanly. To run just one side: `make backend` / `make frontend`, or pass `--backend` / `--frontend` directly to `dev.py`. The backend port is configurable via `--backend-port`.
+That starts both the backend (`:8765`) and frontend (Vite, `:5765`; it stops if the port is busy) in one terminal, with output prefixed `[backend ]` / `[frontend]`. Ctrl+C stops both cleanly. To run just one side: `make backend` / `make frontend`, or pass `--backend` / `--frontend` directly to `dev.py`. The backend port is configurable via `--backend-port`; the Vite proxy in `frontend/vite.config.ts` expects 8765, so change both together.
 
 Open the URL Vite prints. Paste one or more YouTube URLs (one per line), optionally add tags, click Submit. Progress streams live; click a row to view its outputs in the right panel. Drag the splitter to resize.
 

@@ -100,7 +100,7 @@ def main() -> int:
                         help="Run backend only (skip frontend)")
     parser.add_argument("--frontend", action="store_true",
                         help="Run frontend only (skip backend)")
-    parser.add_argument("--backend-port", type=int, default=8000)
+    parser.add_argument("--backend-port", type=int, default=8765)
     args = parser.parse_args()
 
     run_backend = args.backend or not args.frontend
