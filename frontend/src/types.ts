@@ -32,4 +32,3 @@ export type ServerEvent =
   | { type: "job.deleted"; job_id: string };
 
 export type TranscriptKind = "raw" | "structured" | "summary";
-export type ViewerMode = "html" | "markdown";

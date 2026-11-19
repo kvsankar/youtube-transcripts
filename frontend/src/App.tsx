@@ -1,58 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  createJobs,
-  deleteJob,
-  setJobTags,
-  subscribeEvents,
-} from "./api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createJobs, deleteJob, setJobTags, subscribeEvents } from "./api";
 import { confirmAndDelete } from "./confirmRemove";
-import { Splitter } from "./Splitter";
+import { formatDate, useCssVar, useMediaQuery } from "./hooks";
+import { StepTrack } from "./StepTrack";
+import { displayTitle, statusText } from "./steps";
 import { Viewer } from "./Viewer";
-import type { Job, JobStatus } from "./types";
+import type { Job } from "./types";
 
-const STAGE_LABEL: Record<JobStatus, string> = {
-  queued: "Queued",
-  downloading: "Downloading",
-  transcribing: "Transcribing",
-  structuring: "Structuring",
-  summarizing: "Summarizing",
-  done: "Done",
-  failed: "Failed",
-  cancelled: "Cancelled",
-};
+const SPLIT_KEY = "yt-transcripts:library-pct";
+const SPLIT_DEFAULT = 35;
+const SPLIT_MIN = 20;
+const SPLIT_MAX = 70;
 
 export function App() {
-  const [urlInput, setUrlInput] = useState("");
-  const [tagInput, setTagInput] = useState("");
   const [jobs, setJobs] = useState<Record<string, Job>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const narrow = useMediaQuery("(width <= 760px)");
+
+  useEffect(
+    () =>
+      subscribeEvents((event) => {
+        setJobs((prev) => {
+          switch (event.type) {
+            case "snapshot":
+              return Object.fromEntries(event.jobs.map((j) => [j.id, j]));
+            case "job.created":
+            case "job.updated":
+              return { ...prev, [event.job.id]: event.job };
+            case "job.deleted": {
+              const next = { ...prev };
+              delete next[event.job_id];
+              return next;
+            }
+          }
+        });
+      }),
+    [],
+  );
 
   useEffect(() => {
-    return subscribeEvents((event) => {
-      setJobs((prev) => {
-        const next = { ...prev };
-        switch (event.type) {
-          case "snapshot":
-            return Object.fromEntries(event.jobs.map((j) => [j.id, j]));
-          case "job.created":
-          case "job.updated":
-            next[event.job.id] = event.job;
-            return next;
-          case "job.deleted":
-            delete next[event.job_id];
-            return next;
-        }
-      });
-    });
-  }, []);
-
-  // Drop selection if the selected job disappears
-  useEffect(() => {
-    if (selectedJobId && !jobs[selectedJobId]) setSelectedJobId(null);
-  }, [jobs, selectedJobId]);
+    if (selectedId && !jobs[selectedId]) setSelectedId(null);
+  }, [jobs, selectedId]);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -60,298 +50,218 @@ export function App() {
     return [...set].sort();
   }, [jobs]);
 
-  const sortedJobs = useMemo(() => {
-    let arr = Object.values(jobs).sort((a, b) => a.created_at - b.created_at);
-    if (activeFilters.size > 0) {
-      arr = arr.filter((j) => j.tags.some((t) => activeFilters.has(t)));
-    }
-    return arr;
-  }, [jobs, activeFilters]);
+  // Newest first: the video you just added is at the top.
+  const visible = useMemo(() => {
+    const list = Object.values(jobs).sort((a, b) => b.created_at - a.created_at);
+    return filters.size ? list.filter((j) => j.tags.some((t) => filters.has(t))) : list;
+  }, [jobs, filters]);
 
-  const parsedUrls = useMemo(() => parseUrls(urlInput), [urlInput]);
-  const parsedTags = useMemo(() => parseTags(tagInput), [tagInput]);
-
-  async function handleSubmit() {
-    if (parsedUrls.length === 0) return;
-    setSubmitting(true);
-    setError(null);
+  const [split, setSplit] = useState(() => {
     try {
-      await createJobs(parsedUrls, parsedTags);
-      setUrlInput("");
-      setTagInput("");
+      const v = parseFloat(localStorage.getItem(SPLIT_KEY) ?? "");
+      return Number.isFinite(v) ? clamp(v) : SPLIT_DEFAULT;
+    } catch {
+      return SPLIT_DEFAULT;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(SPLIT_KEY, String(split));
+    } catch {
+      /* private window: keep the split for this visit only */
+    }
+  }, [split]);
+  const appRef = useCssVar<HTMLDivElement>("--split", `${split}%`);
+
+  async function run(action: () => Promise<unknown>): Promise<boolean> {
+    try {
+      setError(null);
+      await action();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
+      return false;
     }
   }
 
-  async function handleDelete(job: Job) {
-    try {
-      const removed = await confirmAndDelete(job, (m) => window.confirm(m), deleteJob);
-      if (removed && selectedJobId === job.id) setSelectedJobId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleAddTag(job: Job, raw: string) {
-    const tag = raw.trim();
-    if (!tag || job.tags.includes(tag)) return;
-    try {
-      await setJobTags(job.id, [...job.tags, tag]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleRemoveTag(job: Job, tag: string) {
-    try {
-      await setJobTags(job.id, job.tags.filter((t) => t !== tag));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  function toggleFilter(tag: string) {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(tag)) next.delete(tag);
-      else next.add(tag);
-      return next;
-    });
-  }
-
-  const selectedJob = selectedJobId ? jobs[selectedJobId] ?? null : null;
-
-  const leftPane = (
-    <div className="left-pane">
-      <header>
-        <h1>YouTube Transcripts</h1>
-      </header>
-
-      <section className="submit-section">
-        <textarea
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          placeholder={"https://www.youtube.com/watch?v=...\nhttps://youtu.be/..."}
-          spellCheck={false}
-          rows={3}
-        />
-        <input
-          className="tag-input"
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          placeholder="Optional tags (comma-separated)"
-        />
-        <div className="row">
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || parsedUrls.length === 0}
-          >
-            {submitting
-              ? "Submitting…"
-              : `Submit ${parsedUrls.length || ""} URL${
-                  parsedUrls.length === 1 ? "" : "s"
-                }`}
-          </button>
-          <span className="hint">
-            {parsedUrls.length === 0
-              ? "Awaiting URLs"
-              : `${parsedUrls.length} URL${
-                  parsedUrls.length === 1 ? "" : "s"
-                }${parsedTags.length ? ` · tags: ${parsedTags.join(", ")}` : ""}`}
-          </span>
-        </div>
-        {error && <p className="error">{error}</p>}
-      </section>
-
-      {allTags.length > 0 && (
-        <section className="filter-section">
-          <span className="filter-label">Filter by tag:</span>
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              className={`filter-chip ${activeFilters.has(tag) ? "active" : ""}`}
-              onClick={() => toggleFilter(tag)}
-            >
-              {tag}
-            </button>
-          ))}
-          {activeFilters.size > 0 && (
-            <button
-              className="filter-clear"
-              onClick={() => setActiveFilters(new Set())}
-            >
-              Clear
-            </button>
-          )}
-        </section>
-      )}
-
-      <section className="jobs-section">
-        {sortedJobs.length === 0 ? (
-          <p style={{ color: "#888" }}>No jobs match.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Submitted</th>
-                <th>Video</th>
-                <th>Tags</th>
-                <th>Stage</th>
-                <th>Progress</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedJobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  selected={job.id === selectedJobId}
-                  onSelect={() => setSelectedJobId(job.id)}
-                  onDelete={() => handleDelete(job)}
-                  onAddTag={(raw) => handleAddTag(job, raw)}
-                  onRemoveTag={(tag) => handleRemoveTag(job, tag)}
-                />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
-  );
-
-  const rightPane = <Viewer job={selectedJob} />;
+  const selected = selectedId ? jobs[selectedId] ?? null : null;
 
   return (
-    <Splitter
-      left={leftPane}
-      right={rightPane}
-      initialLeftPct={60}
-      storageKey="yt-transcripts:split-pct"
+    <div className="app" ref={appRef} data-view={narrow && selected ? "reader" : "list"}>
+      <aside className="library" aria-label="Videos">
+        <h1 className="brand">YouTube Transcripts</h1>
+        <AddForm onAdd={(urls, tags) => run(() => createJobs(urls, tags))} />
+        {error && (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        )}
+
+        {allTags.length > 0 && (
+          <div className="filters" role="group" aria-label="Show only videos tagged">
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                className="chip"
+                aria-pressed={filters.has(tag)}
+                onClick={() =>
+                  setFilters((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(tag)) next.delete(tag);
+                    else next.add(tag);
+                    return next;
+                  })
+                }
+              >
+                {tag}
+              </button>
+            ))}
+            {filters.size > 0 && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setFilters(new Set())}>
+                Show all
+              </button>
+            )}
+          </div>
+        )}
+
+        {visible.length === 0 ? (
+          <p className="empty-list">
+            {filters.size ? "No video has these tags." : "No videos yet. Paste a YouTube link above to start."}
+          </p>
+        ) : (
+          <ul className="video-list">
+            {visible.map((job) => (
+              <li key={job.id}>
+                <button
+                  className="video"
+                  aria-current={job.id === selectedId}
+                  onClick={() => setSelectedId(job.id)}
+                >
+                  <span className="video-title">{displayTitle(job)}</span>
+                  <span className="video-meta">
+                    <StepTrack job={job} />
+                    <span className={job.status === "failed" ? "status-danger" : undefined}>{statusText(job)}</span>
+                    <span className="video-date">{formatDate(job.created_at)}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
+
+      <Divider split={split} onChange={setSplit} />
+
+      <main className="reader">
+        <Viewer
+          job={selected}
+          onBack={() => setSelectedId(null)}
+          onRemove={(job) => run(() => confirmAndDelete(job, (m) => window.confirm(m), deleteJob))}
+          onAddTag={(job, tag) => run(() => setJobTags(job.id, [...job.tags, tag]))}
+          onRemoveTag={(job, tag) => run(() => setJobTags(job.id, job.tags.filter((t) => t !== tag)))}
+        />
+      </main>
+    </div>
+  );
+}
+
+function AddForm({ onAdd }: { onAdd: (urls: string[], tags: string[]) => Promise<boolean> }) {
+  const [links, setLinks] = useState("");
+  const [tags, setTags] = useState("");
+  const [busy, setBusy] = useState(false);
+  const urls = useMemo(() => parseUrls(links), [links]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!urls.length) return;
+    setBusy(true);
+    const added = await onAdd(urls, parseTags(tags));
+    setBusy(false);
+    if (added) {
+      setLinks("");
+      setTags("");
+    }
+  }
+
+  return (
+    <form className="add" onSubmit={submit}>
+      <div className="field">
+        <label className="field-label" htmlFor="links">
+          Add videos
+        </label>
+        <textarea
+          id="links"
+          className="input"
+          rows={2}
+          spellCheck={false}
+          value={links}
+          placeholder="Paste one or more YouTube links"
+          onChange={(e) => setLinks(e.target.value)}
+        />
+      </div>
+      <label className="visually-hidden" htmlFor="new-tags">
+        Tags for these videos
+      </label>
+      <input
+        id="new-tags"
+        className="input"
+        value={tags}
+        placeholder="Tags, separated by commas (optional)"
+        onChange={(e) => setTags(e.target.value)}
+      />
+      <div className="add-row">
+        <button className="btn btn-primary" type="submit" disabled={busy || urls.length === 0}>
+          {busy ? "Adding…" : urls.length > 1 ? `Add ${urls.length} videos` : "Add video"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function Divider({ split, onChange }: { split: number; onChange: (pct: number) => void }) {
+  const dragging = useRef(false);
+
+  function move(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging.current) return;
+    const frame = e.currentTarget.parentElement!.getBoundingClientRect();
+    onChange(clamp(((e.clientX - frame.left) / frame.width) * 100));
+  }
+
+  return (
+    <div
+      className="divider"
+      role="separator"
+      tabIndex={0}
+      aria-label="Resize the video list"
+      aria-orientation="vertical"
+      aria-valuemin={SPLIT_MIN}
+      aria-valuemax={SPLIT_MAX}
+      aria-valuenow={Math.round(split)}
+      onPointerDown={(e) => {
+        dragging.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={move}
+      onPointerUp={() => (dragging.current = false)}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") onChange(clamp(split - 5));
+        if (e.key === "ArrowRight") onChange(clamp(split + 5));
+      }}
     />
   );
 }
 
-function JobRow({
-  job,
-  selected,
-  onSelect,
-  onDelete,
-  onAddTag,
-  onRemoveTag,
-}: {
-  job: Job;
-  selected: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-  onAddTag: (tag: string) => void;
-  onRemoveTag: (tag: string) => void;
-}) {
-  const [tagDraft, setTagDraft] = useState("");
-  const stageClass =
-    job.status === "done" ? "stage done" :
-    job.status === "failed" ? "stage failed" :
-    "stage";
-
-  return (
-    <tr className={selected ? "selected" : ""} onClick={onSelect}>
-      <td className="date-cell">{formatDate(job.created_at)}</td>
-      <td>
-        <div className="video-title">{job.title ?? <em>Resolving…</em>}</div>
-        <div className="url">{job.url}</div>
-      </td>
-      <td className="tags-cell" onClick={(e) => e.stopPropagation()}>
-        <div className="tag-chips">
-          {job.tags.map((tag) => (
-            <span key={tag} className="tag-chip">
-              {tag}
-              <button
-                className="tag-remove"
-                title="Remove tag"
-                onClick={() => onRemoveTag(tag)}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          <input
-            className="tag-add"
-            value={tagDraft}
-            onChange={(e) => setTagDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === ",") {
-                e.preventDefault();
-                if (tagDraft.trim()) {
-                  onAddTag(tagDraft);
-                  setTagDraft("");
-                }
-              }
-            }}
-            placeholder="+ tag"
-          />
-        </div>
-      </td>
-      <td>
-        <span className={stageClass}>{STAGE_LABEL[job.status]}</span>
-        <div style={{ fontSize: "0.78rem", color: "#888", marginTop: 4 }}>
-          {job.stage_label}
-        </div>
-        {job.error && <div className="error">{job.error}</div>}
-      </td>
-      <td>
-        <div className="bar">
-          <div
-            className="bar-fill"
-            style={{ width: `${Math.min(100, Math.max(0, job.progress))}%` }}
-          />
-        </div>
-        <div style={{ fontSize: "0.72rem", color: "#888", marginTop: 4 }}>
-          {job.progress.toFixed(0)}%
-        </div>
-      </td>
-      <td onClick={(e) => e.stopPropagation()}>
-        <div className="actions">
-          <button
-            onClick={onSelect}
-            disabled={!job.summary_path && !job.structured_transcript_path && !job.raw_transcript_path}
-          >
-            View
-          </button>
-          <button onClick={onDelete}>Remove</button>
-        </div>
-      </td>
-    </tr>
-  );
+function clamp(pct: number): number {
+  return Math.max(SPLIT_MIN, Math.min(SPLIT_MAX, pct));
 }
 
 function parseUrls(text: string): string[] {
   return text
     .split(/[\s,]+/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 0 && /^https?:\/\//i.test(s));
+    .filter((s) => /^https?:\/\//i.test(s));
 }
 
 function parseTags(text: string): string[] {
-  const seen = new Set<string>();
-  return text
-    .split(/[,\n]+/)
-    .map((s) => s.trim())
-    .filter((s) => {
-      if (!s || seen.has(s)) return false;
-      seen.add(s);
-      return true;
-    });
-}
-
-function formatDate(unix: number): string {
-  const d = new Date(unix * 1000);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  if (sameDay) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-  return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  return [...new Set(text.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean))];
 }

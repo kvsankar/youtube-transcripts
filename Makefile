@@ -32,7 +32,7 @@ build:
 
 test:
 	cd backend && uv run pytest -q
-	cd frontend && npm test
+	cd frontend && npm test && npm run lint:css
 
 doctor:
 	uv run scripts/doctor.py

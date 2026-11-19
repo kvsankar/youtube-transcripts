@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "color-no-hex": true,
+    "color-named": "never",
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color"],
+    "declaration-property-value-allowed-list": {
+      "font-size": ["/^var\\(--text-[a-z]+\\)$/"],
+      "font-weight": ["/^var\\(--weight-[a-z]+\\)$/"],
+      "border-radius": ["/^var\\(--radius-[a-z]+\\)$/"],
+      "box-shadow": ["none", "/^var\\(--shadow-[a-z]+\\)$/"],
+      "/^(padding|margin)(-(top|right|bottom|left))?$/": ["/^(0|auto|var\\(--[a-z0-9-]+\\))( (0|auto|var\\(--[a-z0-9-]+\\))){0,3}$/"],
+      "/^(row-|column-)?gap$/": ["/^(0|var\\(--[a-z0-9-]+\\))$/"]
+    }
+  },
+  "overrides": [
+    {
+      "files": ["src/tokens.css"],
+      "rules": {
+        "color-no-hex": null,
+        "declaration-property-value-allowed-list": null
+      }
+    }
+  ]
+}

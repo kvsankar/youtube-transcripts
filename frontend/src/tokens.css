@@ -1,0 +1,107 @@
+/*
+ * Design tokens. This is the only stylesheet that may hold raw colours,
+ * sizes, weights, radii or spacing; app.css uses only var(--…).
+ * stylelint (.stylelintrc.json) enforces that.
+ *
+ * Palette: cool grey paper, slate ink, verdigris for progress and selection,
+ * crimson for errors. Type: Atkinson Hyperlegible for controls, Literata for
+ * long reading.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Colour */
+  --color-paper: #eff1ee;
+  --color-surface: #f8f9f7;
+  --color-ink: #1f2a2e;
+  --color-muted: #5b6569;
+  --color-rule: #d3d9d5;
+  --color-accent: #2d6e68;
+  --color-accent-ink: #f8f9f7;
+  --color-accent-tint: #dbe8e4;
+  --color-danger: #a3263b;
+  --color-danger-tint: #f4dfe2;
+  --color-step-todo: #cfd6d2;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-read: "Literata Variable", Georgia, serif;
+  --font-code: ui-monospace, "Cascadia Code", Menlo, monospace;
+  --text-xs: 0.8125rem;   /* 13 px: dates, step labels */
+  --text-sm: 0.875rem;    /* 14 px: secondary lines */
+  --text-md: 1rem;        /* 16 px: controls and list titles */
+  --text-read: 1.125rem;  /* 18 px: reading text */
+  --text-lg: 1.375rem;    /* 22 px: reading headings */
+  --text-xl: 1.75rem;     /* 28 px: the video title in the reader */
+  --weight-regular: 400;
+  --weight-medium: 600;   /* Literata only; Atkinson has 400 and 700 */
+  --weight-bold: 700;
+  --leading-ui: 1.4;
+  --leading-read: 1.65;
+  --leading-title: 1.25;
+  --measure-read: 68ch;
+
+  /* Spacing: 4 px base, steps about 1.5x apart, named by what they separate */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-inline: var(--space-1);    /* icon to text, inside a chip */
+  --space-control-x: var(--space-3); /* inside a control, left and right */
+  --space-related: var(--space-2);   /* related items in a row */
+  --space-group: var(--space-4);     /* groups inside a pane */
+  --space-pane: var(--space-5);      /* pane padding */
+  --space-section: var(--space-6);   /* reader sections */
+
+  /* Controls: heights on the 8 px grid; one height per row */
+  --control-sm: 24px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --border-width: 1px;
+  --focus-width: 2px;
+
+  /* Shape */
+  --radius-step: 2px;
+  --radius-control: 6px;
+  --radius-pill: 999px;
+
+  /* Step track */
+  --track-height-sm: 6px;
+  --track-height-lg: 8px;
+  --track-segment-sm: 18px;
+  --track-gap: 2px;
+
+  /* Layout */
+  --library-min: 280px;
+  --library-max: 70%;
+  --divider-width: 8px;
+  --shadow-none: none;
+
+  /* Motion */
+  --duration-fill: 400ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #161c1e;
+    --color-surface: #1c2326;
+    --color-ink: #e2e7e5;
+    --color-muted: #9aa4a7;
+    --color-rule: #2f393c;
+    --color-accent: #62b2a8;
+    --color-accent-ink: #10181a;
+    --color-accent-tint: #1f3633;
+    --color-danger: #e57886;
+    --color-danger-tint: #3a2128;
+    --color-step-todo: #333d40;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fill: 0ms;
+  }
+}

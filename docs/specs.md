@@ -30,3 +30,6 @@ they check.
 | ID | Requirement |
 | --- | --- |
 | UI-1 | Remove asks for confirmation, naming the video by title (or URL when it has no title). Cancel keeps the job; OK deletes it. Removing a job deletes only its row, not its audio or transcript files. |
+| UI-2 | Each video shows a four-step track: Download, Transcribe, Tidy up, Summarise. Steps before the running one are done, the running one fills with its progress, and a failed job marks the step its error names. |
+| UI-3 | The status text reads Waiting, "<Verb> <n>%" while a step runs, Ready, "Stopped at <step>" (or Stopped) on failure, and Cancelled. A video with no title reads "Finding the video…" while it is queued or downloading, and "Untitled video" after that. |
+| UI-4 | Every colour, type size, weight, radius, shadow and spacing value lives in `frontend/src/tokens.css`. `npm run lint:css` (stylelint) rejects raw values in the other stylesheets, and no element has a `style` attribute; dynamic sizes go through CSS custom properties. |
