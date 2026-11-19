@@ -5,7 +5,7 @@ requires-python = ">=3.12, <3.13"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "yt-dlp>=2025.1.15",
+    "yt-dlp[default]>=2025.11.12",
     "faster-whisper>=1.2.0",
     "sse-starlette>=2.1",
     "pydantic>=2.9",

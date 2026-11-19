@@ -16,6 +16,12 @@ OUTPUT_TEMPLATE = str(AUDIO_DIR / "%(id)s.%(ext)s")
 # if m4a isn't offered for a given video.
 FORMAT_SELECTOR = "bestaudio[ext=m4a]/bestaudio"
 
+# YouTube serves audio only to clients that solve its JavaScript challenges.
+# yt-dlp runs the EJS solver scripts (the yt-dlp-ejs package) in an external
+# runtime and enables only Deno by default; the server has Node. Without a
+# runtime the download fails with HTTP 403.
+JS_RUNTIMES = {"deno": {}, "node": {}}
+
 
 def download_audio(
     url: str,
@@ -30,7 +36,7 @@ def download_audio(
     """
     # Probe metadata first to learn the video id without downloading bytes.
     on_progress(0.0, "Resolving video…")
-    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as probe:
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "js_runtimes": JS_RUNTIMES}) as probe:
         info = probe.extract_info(url, download=False)
 
     video_id = info.get("id", "unknown")
@@ -59,6 +65,7 @@ def download_audio(
 
     ydl_opts = {
         "format": FORMAT_SELECTOR,
+        "js_runtimes": JS_RUNTIMES,
         "outtmpl": OUTPUT_TEMPLATE,
         "progress_hooks": [progress_hook],
         "quiet": True,

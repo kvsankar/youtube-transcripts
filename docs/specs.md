@@ -18,3 +18,9 @@ they check.
 | WEB-1 | When the built frontend exists (`frontend/dist`, or the folder in `YT_TRANSCRIPTS_FRONTEND_DIST`), the backend serves it at `/`, with `index.html` for `/`. |
 | WEB-2 | The `/api` routes answer as before when the frontend is served. |
 | WEB-3 | When the built frontend does not exist, the backend serves only `/api`, as in development with the Vite dev server. |
+
+## Downloading
+
+| ID | Requirement |
+| --- | --- |
+| DL-1 | Every yt-dlp call (the metadata probe and the download) enables the Deno and Node JavaScript runtimes, and the backend installs the EJS challenge scripts (`yt-dlp[default]`), so yt-dlp can solve YouTube's JavaScript challenges. Without them YouTube answers the audio download with HTTP 403. |
