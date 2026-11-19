@@ -5,6 +5,7 @@ import {
   setJobTags,
   subscribeEvents,
 } from "./api";
+import { confirmAndDelete } from "./confirmRemove";
 import { Splitter } from "./Splitter";
 import { Viewer } from "./Viewer";
 import type { Job, JobStatus } from "./types";
@@ -85,10 +86,10 @@ export function App() {
     }
   }
 
-  async function handleDelete(jobId: string) {
+  async function handleDelete(job: Job) {
     try {
-      await deleteJob(jobId);
-      if (selectedJobId === jobId) setSelectedJobId(null);
+      const removed = await confirmAndDelete(job, (m) => window.confirm(m), deleteJob);
+      if (removed && selectedJobId === job.id) setSelectedJobId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -210,7 +211,7 @@ export function App() {
                   job={job}
                   selected={job.id === selectedJobId}
                   onSelect={() => setSelectedJobId(job.id)}
-                  onDelete={() => handleDelete(job.id)}
+                  onDelete={() => handleDelete(job)}
                   onAddTag={(raw) => handleAddTag(job, raw)}
                   onRemoveTag={(tag) => handleRemoveTag(job, tag)}
                 />

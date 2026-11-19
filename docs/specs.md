@@ -24,3 +24,9 @@ they check.
 | ID | Requirement |
 | --- | --- |
 | DL-1 | Every yt-dlp call (the metadata probe and the download) enables the Deno and Node JavaScript runtimes, and the backend installs the EJS challenge scripts (`yt-dlp[default]`), so yt-dlp can solve YouTube's JavaScript challenges. Without them YouTube answers the audio download with HTTP 403. |
+
+## Job list
+
+| ID | Requirement |
+| --- | --- |
+| UI-1 | Remove asks for confirmation, naming the video by title (or URL when it has no title). Cancel keeps the job; OK deletes it. Removing a job deletes only its row, not its audio or transcript files. |
