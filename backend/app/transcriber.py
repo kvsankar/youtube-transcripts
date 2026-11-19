@@ -15,6 +15,7 @@ was actually taken.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -28,7 +29,7 @@ log = logging.getLogger(__name__)
 
 
 _model: Optional[WhisperModel] = None
-_model_name: str = "medium"
+_model_name: str = os.environ.get("YT_TRANSCRIPTS_WHISPER_MODEL") or "medium"
 
 
 def _try_load(device: str, compute_type: str) -> WhisperModel:

@@ -26,6 +26,7 @@ The structurer (Sonnet) and summarizer (Opus) shell out to the `claude` CLI. Eit
 
 - **API key** *(recommended for headless / CI / multi-user setups)* — set `ANTHROPIC_API_KEY` in your environment before starting the backend. The CLI is invoked with `--bare`, which uses the key directly and skips the per-call init of hooks, plugins, MCP, and CLAUDE.md auto-discovery — a few seconds faster per call.
 - **Subscription / OAuth** — run `claude login` once. With no `ANTHROPIC_API_KEY` set, the CLI uses the cached OAuth credentials. Slower per-call startup since the full Claude Code init runs.
+- **Subscription token for a service** — run `claude setup-token` once and set the token as `CLAUDE_CODE_OAUTH_TOKEN` in the service environment. Set `CLAUDE_CONFIG_DIR` to a folder of the service's own, so the calls do not load a user's hooks, plugins or MCP servers.
 
 The choice is made at backend startup by reading the env var; restart the backend after changing.
 
@@ -68,11 +69,40 @@ That starts both the backend (`:8765`) and frontend (Vite, `:5765`; it stops if 
 
 Open the URL Vite prints. Paste one or more YouTube URLs (one per line), optionally add tags, click Submit. Progress streams live; click a row to view its outputs in the right panel. Drag the splitter to resize.
 
+## Run as a service
+
+The backend can serve the built frontend itself, so one process serves the whole app:
+
+```bash
+make install
+make build                # writes frontend/dist; the backend serves it at /
+```
+
+`deploy/` holds a systemd unit and an example environment file. The settings, all optional:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `YT_TRANSCRIPTS_DATA_DIR` | `data/` in the checkout | Runtime data: `audio/`, `transcripts/`, `jobs.db` |
+| `YT_TRANSCRIPTS_WHISPER_MODEL` | `medium` | faster-whisper model name |
+| `YT_TRANSCRIPTS_FRONTEND_DIST` | `frontend/dist` in the checkout | Built frontend to serve at `/` |
+
+The app has no sign-in. Run it only where you trust everyone who can reach it: each job uses your Claude quota.
+
+## Tests
+
+```bash
+make test
+```
+
+The requirements the tests check are in [docs/specs.md](docs/specs.md).
+
 ## Repo layout
 
 ```
 youtube-transcripts/
-├── Makefile                     # make install / dev / doctor / wipe / clean
+├── Makefile                     # make install / dev / build / test / doctor / wipe / clean
+├── deploy/                      # systemd unit + example environment file
+├── docs/specs.md                # requirements checked by the tests
 ├── scripts/                     # standalone uv-run scripts
 │   ├── install.py               # GPU-aware installer
 │   ├── dev.py                   # runs both servers, prefixed output
@@ -80,6 +110,7 @@ youtube-transcripts/
 │   └── _common.py
 ├── backend/                     # FastAPI service (uv-managed)
 │   ├── pyproject.toml, uv.lock  # cpu/gpu extras pick the torch wheel index
+│   ├── tests/                   # pytest
 │   └── app/
 │       ├── main.py              # routes + SSE + lifespan
 │       ├── pipeline.py          # async worker driving each job through stages
@@ -99,7 +130,7 @@ youtube-transcripts/
         ├── api.ts, types.ts, styles.css, main.tsx
 ```
 
-Runtime artifacts live under a single `data/` directory (gitignored):
+Runtime artifacts live under a single `data/` directory (gitignored), or in `YT_TRANSCRIPTS_DATA_DIR`:
 
 ```
 data/

@@ -43,6 +43,11 @@ torchaudio = [
     { index = "pytorch-cpu",   extra = "cpu" },
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
 # These two extras are mutually exclusive (different torch indexes); never
 # select both at once.
 [tool.uv]

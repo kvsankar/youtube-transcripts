@@ -1,0 +1,20 @@
+# Specification
+
+This document states what the application must do when it runs as a
+service. Each requirement has an ID; tests in `backend/tests/` name the ID
+they check.
+
+## Configuration
+
+| ID | Requirement |
+| --- | --- |
+| CFG-1 | When `YT_TRANSCRIPTS_DATA_DIR` is set, the backend keeps all runtime data (`audio/`, `transcripts/`, `jobs.db`) in that folder and creates the folders it needs. When it is not set, the folder is `data/` at the repository root. |
+| CFG-2 | When `YT_TRANSCRIPTS_WHISPER_MODEL` is set, the transcriber loads that faster-whisper model. When it is not set, it loads `medium`. |
+
+## Serving the frontend
+
+| ID | Requirement |
+| --- | --- |
+| WEB-1 | When the built frontend exists (`frontend/dist`, or the folder in `YT_TRANSCRIPTS_FRONTEND_DIST`), the backend serves it at `/`, with `index.html` for `/`. |
+| WEB-2 | The `/api` routes answer as before when the frontend is served. |
+| WEB-3 | When the built frontend does not exist, the backend serves only `/api`, as in development with the Vite dev server. |

@@ -1,0 +1,27 @@
+# systemd unit for running the app as a service on Linux.
+# Install: copy to /etc/systemd/system/, create /etc/youtube-transcripts.env
+# from youtube-transcripts.env.example, then
+#   systemctl daemon-reload && systemctl enable --now youtube-transcripts
+# Change User, Group and the paths to match the host.
+
+[Unit]
+Description=YouTube transcripts (download, transcribe, structure, summarize)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=youtube-transcripts
+Group=youtube-transcripts
+WorkingDirectory=/srv/youtube-transcripts/backend
+EnvironmentFile=/etc/youtube-transcripts.env
+ExecStart=/srv/youtube-transcripts/backend/.venv/bin/uvicorn app.main:app --host ${YT_TRANSCRIPTS_HOST} --port ${YT_TRANSCRIPTS_PORT} --log-level info
+Restart=on-failure
+RestartSec=5
+# Whisper `medium` on the CPU uses about 2 GB while it runs.
+MemoryMax=3G
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

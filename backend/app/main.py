@@ -3,16 +3,20 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, HttpUrl
 
 from . import pipeline
 from .jobs import store
+from .paths import PROJECT_ROOT
 
 
 logging.basicConfig(
@@ -190,3 +194,14 @@ async def events():
 
 def _format_sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+# Serve the built frontend (`npm run build`) at `/` when it exists, so one
+# process serves the whole app in production. Mounted last, so the `/api`
+# routes above take precedence. In development the Vite dev server serves
+# the frontend and this folder usually does not exist.
+FRONTEND_DIST = Path(
+    os.environ.get("YT_TRANSCRIPTS_FRONTEND_DIST") or PROJECT_ROOT / "frontend" / "dist"
+)
+if FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
