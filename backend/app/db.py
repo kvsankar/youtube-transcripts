@@ -53,3 +53,5 @@ def init_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN summary_path TEXT")
     if "tags" not in existing_cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+    if "restarts" not in existing_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0")

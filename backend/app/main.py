@@ -34,7 +34,7 @@ async def lifespan(_: FastAPI):
         log.warning("Removed %d duplicate job row(s) on startup", removed)
     failed, requeued = store.recover_interrupted()
     if failed:
-        log.warning("Marked %d in-flight job(s) as failed after restart", len(failed))
+        log.warning("Marked %d job(s) failed: interrupted again after a restart", len(failed))
     for job in requeued:
         pipeline.submit(job)
     yield
@@ -90,6 +90,7 @@ def create_jobs(payload: CreateJobsRequest) -> dict:
                 error=None,
                 progress=0.0,
                 stage_label="Queued",
+                restarts=0,
             )
             revived = store.get(existing.id)
             if revived is not None:

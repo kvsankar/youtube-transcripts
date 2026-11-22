@@ -56,6 +56,8 @@ class Job:
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     tags: list[str] = field(default_factory=list)
+    # How many times a restart put this job back in the queue (JOB-2).
+    restarts: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,8 +81,20 @@ class Job:
 _COLUMNS = (
     "id", "url", "status", "progress", "stage_label",
     "title", "audio_path", "raw_transcript_path", "structured_transcript_path",
-    "summary_path", "error", "created_at", "updated_at", "tags",
+    "summary_path", "error", "created_at", "updated_at", "tags", "restarts",
 )
+
+# A restart puts an interrupted job back in the queue this many times (JOB-2).
+MAX_RESTARTS = 1
+
+# The error prefix of each running status; the frontend marks the failed step
+# by this prefix.
+_ERROR_PREFIX: dict[str, str] = {
+    "downloading": "Download failed",
+    "transcribing": "Transcription failed",
+    "structuring": "Structuring failed",
+    "summarizing": "Summarization failed",
+}
 
 # Columns whose value passes through json.dumps before hitting SQLite
 _JSON_COLUMNS = {"tags"}
@@ -246,26 +260,41 @@ class JobStore:
         return removed
 
     def recover_interrupted(self) -> tuple[list[Job], list[Job]]:
-        """Reconcile state after a process restart.
+        """Reconcile state after a process restart (JOB-1, JOB-2).
 
-        - Jobs that were actively running get marked `failed` (their progress
-          can't be resumed mid-stream, and re-running them safely needs a
-          decision the user should make).
-        - Jobs that were `queued` are returned so the worker can re-pick them.
+        - A job that was running goes back in the queue, up to MAX_RESTARTS
+          times; its finished steps are skipped because their files exist.
+        - A job interrupted more often than that is marked `failed`, so a job
+          that always stops the process (for example by running out of
+          memory) does not run forever.
+        - Jobs that were `queued` stay queued.
 
-        Returns (failed_jobs, requeued_jobs).
+        Returns (jobs failed now, jobs to queue) in creation order.
         """
-        now = time.time()
-        with self._write_lock:
-            self._conn.execute(
-                f"UPDATE jobs SET status = 'failed', "
-                f"  error = COALESCE(error, 'Interrupted by server restart'), "
-                f"  stage_label = 'Failed', "
-                f"  updated_at = ? "
-                f"WHERE status IN ({', '.join('?' for _ in ACTIVE_STATUSES)})",
-                (now, *ACTIVE_STATUSES),
-            )
-        failed = self.by_status(("failed",))
+        failed: list[Job] = []
+        for job in self.by_status(ACTIVE_STATUSES):
+            if job.restarts < MAX_RESTARTS:
+                self.update(
+                    job.id,
+                    status="queued",
+                    progress=0.0,
+                    stage_label="Queued",
+                    error=None,
+                    restarts=job.restarts + 1,
+                )
+                log.warning(
+                    "Queued job %s again after a restart (it was %s)",
+                    job.id[:8], job.status,
+                )
+            else:
+                error = (
+                    f"{_ERROR_PREFIX[job.status]}: the service stopped during this "
+                    f"step again after a restart (for example, it ran out of "
+                    f"memory). To retry, submit the URL again."
+                )
+                failed.append(self.update(
+                    job.id, status="failed", stage_label="Failed", error=error,
+                ))
         requeued = self.by_status(("queued",))
         return failed, requeued
 

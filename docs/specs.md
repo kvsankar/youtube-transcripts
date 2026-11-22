@@ -33,3 +33,10 @@ they check.
 | UI-2 | Each video shows a four-step track: Download, Transcribe, Tidy up, Summarise. Steps before the running one are done, the running one fills with its progress, and a failed job marks the step its error names. |
 | UI-3 | The status text reads Waiting, "<Verb> <n>%" while a step runs, Ready, "Stopped at <step>" (or Stopped) on failure, and Cancelled. A video with no title reads "Finding the video…" while it is queued or downloading, and "Untitled video" after that. |
 | UI-4 | Every colour, type size, weight, radius, shadow and spacing value lives in `frontend/src/tokens.css`. `npm run lint:css` (stylelint) rejects raw values in the other stylesheets, and no element has a `style` attribute; dynamic sizes go through CSS custom properties. |
+
+## Restarts
+
+| ID | Requirement |
+| --- | --- |
+| JOB-1 | When the backend starts and finds a job that was running when the process stopped (a crash, an out-of-memory kill or a restart), it puts the job back in the queue and runs it again. The steps whose output files exist are skipped. Jobs that were waiting stay in the queue. |
+| JOB-2 | The backend puts an interrupted job back in the queue once. If the job is interrupted again, it is marked failed, and its error names the step (for example "Transcription failed: …") and says to submit the URL again. Submitting the URL of a failed job queues it with a new allowance of one restart. |
