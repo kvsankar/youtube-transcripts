@@ -25,6 +25,14 @@ they check.
 | --- | --- |
 | DL-1 | Every yt-dlp call (the metadata probe and the download) enables the Deno and Node JavaScript runtimes, and the backend installs the EJS challenge scripts (`yt-dlp[default]`), so yt-dlp can solve YouTube's JavaScript challenges. Without them YouTube answers the audio download with HTTP 403. |
 
+## Transcribing
+
+| ID | Requirement |
+| --- | --- |
+| TR-1 | The transcriber decodes the audio with ffmpeg to 16 kHz mono samples in a temporary file and reads them from that file, so the decoded audio is not held in memory. |
+| TR-2 | The transcriber gives Whisper the audio in parts of at most 10 minutes, so its memory use does not grow with the length of the video. Each cut is at the quietest half second in the 30 seconds before the 10-minute limit, so a cut seldom falls inside a word. The parts cover the audio in order, without gaps or overlap. |
+| TR-3 | The raw transcript joins the text of the parts in order. Progress runs over the whole audio. When the language is `auto`, the language detected in the first part is used for the other parts. |
+
 ## Job list
 
 | ID | Requirement |
